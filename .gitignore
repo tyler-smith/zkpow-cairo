@@ -1,0 +1,8 @@
+# Dev utilties
+venv
+
+# Build artifacts
+circuit/out
+contracts/evm/cache
+contracts/evm/out
+
