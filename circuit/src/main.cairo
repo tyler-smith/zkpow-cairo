@@ -150,8 +150,8 @@ func append_header{range_check_ptr, bitwise_ptr: BitwiseBuiltin*, sha256_ptr: fe
     // Check if we're starting a new period or not.
     let (local q, r) = unsigned_div_rem(new_state.height, PeriodLength);
 
-    // New period; calulate new target/nbits before finishing
     if (r == 0) {
+        // New period; calulate new target/nbits before finishing
         %{
             if ids.DEBUG_LOGGING == 1:
                 print("Changing periods...")
@@ -167,19 +167,17 @@ func append_header{range_check_ptr, bitwise_ptr: BitwiseBuiltin*, sha256_ptr: fe
         assert new_state.target.high = new_target.high;
         assert new_state.header.nbits = new_nbits;
 
-        set_state_hash(&new_state);
-        set_state_weight(old_state.weight, &new_state);
-        validate_state(&new_state);
-        _debug_check_after_append_header(&new_state);
-        
-        return &new_state;
-    } 
+        tempvar bitwise_ptr = bitwise_ptr;
+    } else {
+        // Same period; just use the old target
+        assert new_state.period_started_at = old_state.period_started_at;
+        assert new_state.target.low = old_state.target.low;
+        assert new_state.target.high = old_state.target.high;
+        assert new_state.header.nbits = old_state.header.nbits;
 
-    // Same period; just use the old target
-    assert new_state.period_started_at = old_state.period_started_at;
-    assert new_state.target.low = old_state.target.low;
-    assert new_state.target.high = old_state.target.high;
-    assert new_state.header.nbits = old_state.header.nbits;
+        tempvar bitwise_ptr = bitwise_ptr;
+    }
+    tempvar bitwise_ptr = bitwise_ptr;
 
     // Now the new header has been built so we can hash and valiate it
     set_state_hash(&new_state);
@@ -438,10 +436,16 @@ func main{output_ptr: felt*, range_check_ptr, bitwise_ptr: BitwiseBuiltin*}() {
     set_state_hash{sha256_ptr=sha256_ptr}(&initial_state);
 
     // If this is the genesis header, set our genesis_hash
-    let packed_hash = pack_hash(initial_state.hash);
     if (initial_state.height == 0) {
+        let packed_hash = pack_hash(initial_state.hash);
         assert initial_state.genesis_hash.low = packed_hash.low;
         assert initial_state.genesis_hash.high = packed_hash.high;
+
+        tempvar bitwise_ptr = bitwise_ptr;
+        tempvar range_check_ptr = range_check_ptr;
+    } else {
+        tempvar bitwise_ptr = bitwise_ptr;
+        tempvar range_check_ptr = range_check_ptr;
     }
 
     // Load new headers from input and append them sequentially
