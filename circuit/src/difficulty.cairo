@@ -3,7 +3,7 @@ from src.endian import reverse_4byte_endianess
 from starkware.cairo.common.bitwise import bitwise_and, bitwise_or
 from starkware.cairo.common.cairo_builtins import BitwiseBuiltin
 from starkware.cairo.common.math import unsigned_div_rem, assert_le_felt, assert_lt_felt
-from starkware.cairo.common.uint256 import Uint256, uint256_and, uint256_lt, uint256_mul, uint256_or, uint256_shr, uint256_unsigned_div_rem
+from starkware.cairo.common.uint256 import Uint256, uint256_add, uint256_and, uint256_check, uint256_le, uint256_lt, uint256_mul, uint256_or, uint256_shr, uint256_sub, uint256_unsigned_div_rem
 
 // nbits_to_target calculates the full Uint256 target value represented by the
 // compact base-256 nbits value.
@@ -106,6 +106,68 @@ func calculate_new_target{range_check_ptr, bitwise_ptr: BitwiseBuiltin*}(period_
     return new_target_candidate;
 }
 
+// calculate_work_from_target determines the amount of work proven by a header
+// with the given difficulty target.
+func calculate_work_from_target{range_check_ptr}(target: Uint256) -> Uint256 {
+    alloc_locals;
+
+    let one = Uint256(low=1, high=0);
+
+    // Targets < 1 are undefined
+    let (target_gt_one) = uint256_le(target, one);
+    assert target_gt_one = 0;
+
+    // Use target+1 as the divisor, per the spec
+    let (divisor, add_carry) = uint256_add(target, one);
+    assert add_carry = 0;
+
+
+    // Calulate the quotient and remainder from (max+1)/(target+1). These will
+    // both fit in Uint256 because the numerator is 257 bits and divisor must
+    // be >= 2
+    let max = max_target();
+    local quotient: Uint256;
+    local remainder: Uint256;
+    %{
+        num = (ids.max.high << 128) + ids.max.low + 1
+        den = (ids.divisor.high << 128) + ids.divisor.low
+        quotient, remainder = divmod(num, den)
+
+        ids.quotient.low = quotient & ((1 << 128) - 1)
+        ids.quotient.high = quotient >> 128
+        ids.remainder.low = remainder & ((1 << 128) - 1)
+        ids.remainder.high = remainder >> 128
+    %}
+    uint256_check(quotient);
+    uint256_check(remainder);
+
+    // The natural validity check is:
+    //
+    //   divisor * quotient + remainder == numerator
+    //
+    // but to avoid dealing with overflowing Uint256s we instead check:
+    //
+    //   divisor * (quotient-1) + remainder = numerator - divisor
+    //
+    // Because divisor = target + 1, and numerator = 1<<256, we can calulate
+    // (numerator - divisor) with 2^256 - 1 - target and completely avoid any
+    // integers with >256 bits.
+
+    let (numerator_minus_divisor) = uint256_sub(max, target);
+    let (quotient_minus_one) = uint256_sub(quotient, one);
+
+    let (res_mul, carry) = uint256_mul(quotient_minus_one, divisor);
+    assert carry = Uint256(0, 0);
+    let (check_val, add_carry) = uint256_add(res_mul, remainder);
+    assert check_val = numerator_minus_divisor;
+    assert add_carry = 0;
+
+    let (is_valid) = uint256_lt(remainder, divisor);
+    assert is_valid = 1;
+
+    return quotient;
+}
+
 // clamp_timespan ensures the timespan doesn't exceed protocol thresholds.
 func clamp_timespan{range_check_ptr}(timespan : felt) -> felt {
     alloc_locals;
@@ -167,4 +229,10 @@ func _uint256_pow_inner{range_check_ptr}(carry : Uint256, base : Uint256, exp : 
 
     let (res, _) = uint256_mul(carry, base);
     return _uint256_pow_inner(res, base, exp-1);
+}
+
+// max_target returns the maximum possible target value (minimum difficulty)
+func max_target() -> Uint256 {
+    let max = Uint256(low=0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF, high=0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF);
+    return max;
 }

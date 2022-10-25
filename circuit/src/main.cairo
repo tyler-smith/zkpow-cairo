@@ -1,6 +1,6 @@
 %builtins output range_check bitwise
 
-from src.difficulty import calculate_new_target, target_to_nbits_little_endian
+from src.difficulty import calculate_new_target, calculate_work_from_target, target_to_nbits_little_endian
 from src.endian import reverse_4byte_endianess
 from src.sha256.sha256 import finalize_sha256, sha256d_80bytes
 
@@ -8,7 +8,7 @@ from starkware.cairo.common.alloc import alloc
 from starkware.cairo.common.cairo_builtins import BitwiseBuiltin
 from starkware.cairo.common.math import unsigned_div_rem
 from starkware.cairo.common.registers import get_fp_and_pc
-from starkware.cairo.common.uint256 import Uint256, uint256_add, uint256_le, uint256_unsigned_div_rem
+from starkware.cairo.common.uint256 import Uint256, uint256_add, uint256_le
 
 // PeriodLength is the number of blocks between difficulty adjustments.
 const PeriodLength = 2016;
@@ -248,8 +248,11 @@ func append_header{range_check_ptr, bitwise_ptr: BitwiseBuiltin*, sha256_ptr: fe
     set_state_hash(&new_state);
     validate_state(&new_state);
 
-    // Lastly we increase the total weight by the work proven by the new header
-    set_state_weight(old_state.weight, &new_state);
+    // Increase the total weight by the work proven by the new header
+    let proven_work = calculate_work_from_target(new_state.target);
+    let (new_weight, carry) = uint256_add(old_state.weight, proven_work);
+    assert carry = 0;
+    assert new_state.weight = new_weight;
 
     _debug_check_after_append_header(&new_state);
 
@@ -321,19 +324,6 @@ func set_state_hash{range_check_ptr, sha256_ptr: felt*}(s : State*) {
     return ();
 }
 
-// set_state_weight calcaultes the weight created by the new state and adds it
-// to the existing weight.
-func set_state_weight{range_check_ptr}(old_weight : Uint256, new_state : State*) {
-    let max = Uint256(low=0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF, high=0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF);
-    let (new_additional_weight, _) = uint256_unsigned_div_rem(max, new_state.target);
-    let (new_total_weight, carry) = uint256_add(old_weight, new_additional_weight);
-
-    assert carry = 0;
-    assert new_state.weight.low = new_total_weight.low;
-    assert new_state.weight.high = new_total_weight.high;
-    return ();
-}
-
 // validate_state performs the checks to ensure the new header is valid. This
 // includes ensuring the hash is small enough for the current target.
 func validate_state{range_check_ptr, bitwise_ptr: BitwiseBuiltin*}(state: State*) {
@@ -400,6 +390,9 @@ func _debug_check_after_append_header{bitwise_ptr: BitwiseBuiltin*}(state : Stat
         assert state.hash.w5 = 1364831110;
         assert state.hash.w6 = 1754176131;
         assert state.hash.w7 = 0;
+
+        assert state.weight.low = 8590065666;
+        assert state.weight.high = 0;
         return ();
     }
 
@@ -412,6 +405,9 @@ func _debug_check_after_append_header{bitwise_ptr: BitwiseBuiltin*}(state : Stat
         assert state.hash.w5 = 3062590307;
         assert state.hash.w6 = 106914410;
         assert state.hash.w7 = 0;
+
+        assert state.weight.low = 8590065666*2;
+        assert state.weight.high = 0;
         return ();
     }
 
@@ -472,4 +468,3 @@ func main{output_ptr: felt*, range_check_ptr, bitwise_ptr: BitwiseBuiltin*}() {
 
     return ();
 }
-
