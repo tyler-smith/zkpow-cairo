@@ -360,18 +360,6 @@ func _debug_check_after_append_header{bitwise_ptr: BitwiseBuiltin*}(state : Stat
 		return ();
     }
 
-    if (state.height == 136){
-        assert state.hash.w0 = 1400118883;
-		assert state.hash.w1 = 3362349559;
-		assert state.hash.w2 = 2086858669;
-		assert state.hash.w3 = 1304623872;
-		assert state.hash.w4 = 1986631526;
-		assert state.hash.w5 = 1453989643;
-		assert state.hash.w6 = 453684606;
-		assert state.hash.w7 = 0;
-		return ();
-    }
-
     if (state.height == 654){
         assert state.hash.w0 = 879055790;
 		assert state.hash.w1 = 57172736;
