@@ -14,8 +14,8 @@ from starkware.cairo.common.uint256 import Uint256, uint256_add, uint256_le, uin
 const PeriodLength = 2016;
 
 // DEBUG* are temporary flags during development that turns on verbose logging
-// and additional assertions that don't affect the integrity of the computation,
-// but catch errors earlier.
+// and additional assertions that do not affect the integrity of the
+// computation, but catch errors earlier.
 const DEBUG_LOGGING = 0;
 const DEBUG_ASSERTS = 0;
 
@@ -64,7 +64,7 @@ struct State {
     hash: SHA256State,
 }
 
-// Output represents the program's output. It contains the initial state and the
+// Output represents the programs output. It contains the initial state and the
 // resulting state.
 struct Output {
     old_state: State,
@@ -147,7 +147,7 @@ func append_header{range_check_ptr, bitwise_ptr: BitwiseBuiltin*, sha256_ptr: fe
     assert new_state.header.prev_hash.w6 = old_state.hash.w6;
     assert new_state.header.prev_hash.w7 = old_state.hash.w7;
 
-    // Check if we're starting a new period or not.
+    // Check if were starting a new period or not.
     let (local q, r) = unsigned_div_rem(new_state.height, PeriodLength);
 
     // New period; calulate new target/nbits before finishing
@@ -284,8 +284,8 @@ func validate_state{range_check_ptr, bitwise_ptr: BitwiseBuiltin*}(state: State*
 func pack_hash{range_check_ptr, bitwise_ptr: BitwiseBuiltin*}(s : SHA256State) -> Uint256 {
     alloc_locals;
 
-    // The last word will always be 0 in a valid header hash. We can assert it's
-    // 0 and then ignore it.
+    // The last word will always be 0 in a valid header hash. We can assert it
+    // is 0 and then ignore it.
     assert s.w7 = 0;
 
     local w0 = reverse_4byte_endianess(s.w0);
@@ -397,8 +397,8 @@ func main{output_ptr: felt*, range_check_ptr, bitwise_ptr: BitwiseBuiltin*}() {
     let (__fp__, _) = get_fp_and_pc();
 
     // Create memory for sha256 operations. All sha256 input and output blocks
-    // are stored here without constraints, and later we'll apply constraints to
-    // ensure they're all calculated correctly.
+    // are stored here without constraints, and later we apply constraints to
+    // ensure they are all calculated correctly.
     let (local sha256_ptr_start: felt*) = alloc();
     let sha256_ptr = sha256_ptr_start;
 
