@@ -19,8 +19,8 @@ const PeriodLength = 2016;
 const DEBUG_LOGGING = 0;
 const DEBUG_ASSERTS = 0;
 
-// SHA256State represents the internal state of the SHA256 hash function.
-// We keep hashes in this state internally.
+// SHA256State represents the internal state of the SHA256 hash function. All
+// operations on hashes are performed on this structure.
 struct SHA256State {
     w0: felt, 
     w1: felt,
@@ -33,7 +33,7 @@ struct SHA256State {
 }
 
 // Header represents a complete block header. Each felt in the struct, including
-// children structs, represents 1 4-byte word.
+// children structs, represents a single 4-byte word.
 struct Header {
     version: felt,
     prev_hash: SHA256State,
@@ -181,9 +181,13 @@ func append_header{range_check_ptr, bitwise_ptr: BitwiseBuiltin*, sha256_ptr: fe
     assert new_state.target.high = old_state.target.high;
     assert new_state.header.nbits = old_state.header.nbits;
 
+    // Now the new header has been built so we can hash and valiate it
     set_state_hash(&new_state);
-    set_state_weight(old_state.weight, &new_state);
     validate_state(&new_state);
+
+    // Lastly we increase the total weight by the work proven by the new header
+    set_state_weight(old_state.weight, &new_state);
+
     _debug_check_after_append_header(&new_state);
 
     return &new_state;
