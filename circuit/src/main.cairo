@@ -71,8 +71,73 @@ struct Output {
     new_state: State,
 }
 
-// get_new_headers loads the new header values from the program input.
-func get_new_headers() -> (headers: NewHeader**, n_headers: felt) {
+// load_input_state gets the initial state given in the input
+func load_input_state{range_check_ptr, bitwise_ptr: BitwiseBuiltin*, sha256_ptr: felt*}() -> State* {
+    alloc_locals;
+    let (__fp__, _) = get_fp_and_pc();
+
+    local initial_state: State;
+    %{
+        ids.initial_state.height = program_input['height']
+
+        ids.initial_state.period_started_at = program_input['period_started_at']
+
+        ids.initial_state.weight.low = program_input['weight']['low']
+        ids.initial_state.weight.high = program_input['weight']['high']
+
+        ids.initial_state.target.low = program_input['target']['low']
+        ids.initial_state.target.high = program_input['target']['high']
+
+        # Load the genesis hash iff this is not the genesis block. If it is, we
+        # will calculate and set the genesis hash below.
+        if ids.initial_state.height != 0:
+            ids.initial_state.genesis_hash.low = program_input['genesis_hash']['low']
+            ids.initial_state.genesis_hash.high = program_input['genesis_hash']['high']
+
+        header = program_input['header']
+        ids.initial_state.header.version = header[0]
+        ids.initial_state.header.prev_hash.w0 = header[1]
+        ids.initial_state.header.prev_hash.w1 = header[2]
+        ids.initial_state.header.prev_hash.w2 = header[3]
+        ids.initial_state.header.prev_hash.w3 = header[4]
+        ids.initial_state.header.prev_hash.w4 = header[5]
+        ids.initial_state.header.prev_hash.w5 = header[6]
+        ids.initial_state.header.prev_hash.w6 = header[7]
+        ids.initial_state.header.prev_hash.w7 = header[8]
+        ids.initial_state.header.merkle_root.w0 = header[9]
+        ids.initial_state.header.merkle_root.w1 = header[10]
+        ids.initial_state.header.merkle_root.w2 = header[11]
+        ids.initial_state.header.merkle_root.w3 = header[12]
+        ids.initial_state.header.merkle_root.w4 = header[13]
+        ids.initial_state.header.merkle_root.w5 = header[14]
+        ids.initial_state.header.merkle_root.w6 = header[15]
+        ids.initial_state.header.merkle_root.w7 = header[16]
+        ids.initial_state.header.time = header[17]
+        ids.initial_state.header.nbits = header[18]
+        ids.initial_state.header.nonce = header[19]
+    %}
+
+    // Hash the input state
+    set_state_hash{sha256_ptr=sha256_ptr}(&initial_state);
+
+    // If this is the genesis header, set our genesis_hash
+    if (initial_state.height == 0) {
+        let packed_hash = pack_hash(initial_state.hash);
+        assert initial_state.genesis_hash.low = packed_hash.low;
+        assert initial_state.genesis_hash.high = packed_hash.high;
+
+        tempvar bitwise_ptr = bitwise_ptr;
+        tempvar range_check_ptr = range_check_ptr;
+    } else {
+        tempvar bitwise_ptr = bitwise_ptr;
+        tempvar range_check_ptr = range_check_ptr;
+    }
+
+    return &initial_state;
+}
+
+// load_input_headers loads the new header values from the program input.
+func load_input_headers() -> (headers: NewHeader**, n_headers: felt) {
     alloc_locals;
     local headers: NewHeader**;
     local n_headers: felt;
@@ -384,7 +449,6 @@ func _debug_check_after_append_header{bitwise_ptr: BitwiseBuiltin*}(state : Stat
 
 func main{output_ptr: felt*, range_check_ptr, bitwise_ptr: BitwiseBuiltin*}() {
     alloc_locals;
-    let (__fp__, _) = get_fp_and_pc();
 
     // Create memory for sha256 operations. All sha256 input and output blocks
     // are stored here without constraints, and later we'll apply constraints to
@@ -392,72 +456,19 @@ func main{output_ptr: felt*, range_check_ptr, bitwise_ptr: BitwiseBuiltin*}() {
     let (local sha256_ptr_start: felt*) = alloc();
     let sha256_ptr = sha256_ptr_start;
 
-    // Load the initial state from program input
-    local initial_state: State;
-    %{
-        ids.initial_state.height = program_input['height']
+    // Load the input state and headers
+    let input_state = load_input_state{sha256_ptr=sha256_ptr}();
+    let (headers, n_headers) = load_input_headers();
 
-        ids.initial_state.period_started_at = program_input['period_started_at']
-
-        ids.initial_state.weight.low = program_input['weight']['low']
-        ids.initial_state.weight.high = program_input['weight']['high']
-
-        ids.initial_state.target.low = program_input['target']['low']
-        ids.initial_state.target.high = program_input['target']['high']
-
-        if ids.initial_state.height != 0:
-            ids.initial_state.genesis_hash.low = program_input['genesis_hash']['low']
-            ids.initial_state.genesis_hash.high = program_input['genesis_hash']['high']
-
-        header = program_input['header']
-        ids.initial_state.header.version = header[0]
-        ids.initial_state.header.prev_hash.w0 = header[1]
-        ids.initial_state.header.prev_hash.w1 = header[2]
-        ids.initial_state.header.prev_hash.w2 = header[3]
-        ids.initial_state.header.prev_hash.w3 = header[4]
-        ids.initial_state.header.prev_hash.w4 = header[5]
-        ids.initial_state.header.prev_hash.w5 = header[6]
-        ids.initial_state.header.prev_hash.w6 = header[7]
-        ids.initial_state.header.prev_hash.w7 = header[8]
-        ids.initial_state.header.merkle_root.w0 = header[9]
-        ids.initial_state.header.merkle_root.w1 = header[10]
-        ids.initial_state.header.merkle_root.w2 = header[11]
-        ids.initial_state.header.merkle_root.w3 = header[12]
-        ids.initial_state.header.merkle_root.w4 = header[13]
-        ids.initial_state.header.merkle_root.w5 = header[14]
-        ids.initial_state.header.merkle_root.w6 = header[15]
-        ids.initial_state.header.merkle_root.w7 = header[16]
-        ids.initial_state.header.time = header[17]
-        ids.initial_state.header.nbits = header[18]
-        ids.initial_state.header.nonce = header[19]
-    %}
-
-    // Hash the input state
-    set_state_hash{sha256_ptr=sha256_ptr}(&initial_state);
-
-    // If this is the genesis header, set our genesis_hash
-    if (initial_state.height == 0) {
-        let packed_hash = pack_hash(initial_state.hash);
-        assert initial_state.genesis_hash.low = packed_hash.low;
-        assert initial_state.genesis_hash.high = packed_hash.high;
-
-        tempvar bitwise_ptr = bitwise_ptr;
-        tempvar range_check_ptr = range_check_ptr;
-    } else {
-        tempvar bitwise_ptr = bitwise_ptr;
-        tempvar range_check_ptr = range_check_ptr;
-    }
-
-    // Load new headers from input and append them sequentially
-    let state = initial_state;
-    let (headers, n_headers) = get_new_headers();
+    // Copy the input state, then append all headers to it
+    let state = [input_state];
     let new_state = append_headers{sha256_ptr=sha256_ptr}(&state, headers, n_headers);
 
     // Add sha256 constraints
     finalize_sha256(sha256_ptr_start=sha256_ptr_start, sha256_ptr_end=sha256_ptr);
 
     // Write the input and output states
-    write_output(&initial_state, new_state);
+    write_output(input_state, new_state);
 
     return ();
 }
